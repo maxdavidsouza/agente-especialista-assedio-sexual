@@ -52,7 +52,7 @@ def main():
 
     # Ações realizadas
     acoes_disponiveis = [
-        "Aproximação física insistente"
+        "Aproximação física insistente",
         "Beijo na bochecha", "Beijo na boca", "Beijo na testa", "Beijo no pescoço",
         "Cantadas",
         "Divulgação de conteúdo íntimo",
@@ -123,12 +123,18 @@ def main():
         engine.run()
 
         st.subheader("Classificações encontradas:")
-        for resultado in engine.resultados:
-            st.write(f"- {resultado}")
+        if engine.resultados:
+            resultados_exibidos = set()
+            for resultado in engine.resultados:
+                if resultado not in resultados_exibidos:
+                    resultados_exibidos.add(resultado)
+                    st.write(f"- {resultado}")
 
-        st.subheader("Justificativas:")
-        for explicacao in engine.explicacoes:
-            st.write(f"- {explicacao}")
+            st.subheader("Justificativas:")
+            for explicacao in engine.explicacoes:
+                st.write(f"- {explicacao}")
+        else:
+            st.write("Não foi identificada nenhuma conduta ofensiva com os dados fornecidos acima.")
 
 if __name__ == "__main__":
     main()
