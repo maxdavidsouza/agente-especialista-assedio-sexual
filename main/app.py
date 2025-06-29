@@ -88,6 +88,8 @@ def main():
 
     provas = st.radio("Existem provas?", options=["Sim", "Não"]) == "Sim"
 
+    engine = AgenteAssedio()
+
     if st.button("Registrar denúncia"):
         if not nome_denunciante or not nome_denunciado:
             st.error("Preencha os nomes do denunciado e da vítima.")
@@ -117,7 +119,6 @@ def main():
             provas=provas
         )
 
-        engine = AgenteAssedio()
         engine.reset()
         engine.declare(denuncia)
         engine.run()
@@ -133,6 +134,11 @@ def main():
             st.subheader("Justificativas:")
             for explicacao in engine.explicacoes:
                 st.write(f"- {explicacao}")
+
+            engine.orientar()
+            st.subheader("Orientações:")
+            for orientacoes in engine.orientacoes:
+                st.text(f"- {orientacoes}")
         else:
             st.write("Não foi identificada nenhuma conduta ofensiva com os dados fornecidos acima.")
 

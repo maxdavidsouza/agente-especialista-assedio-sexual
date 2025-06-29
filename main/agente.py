@@ -1,9 +1,7 @@
 from experta import *
 from datetime import datetime
 
-# BASE DE CONHECIMENTO
 class Denuncia(Fact):
-    """Assume um conjunto de informações para gerar uma denúncia"""
     nome_denunciante = Field(str, mandatory=True)
     sexo_denunciante = Field(str, mandatory=True)
     nome_denunciado = Field(str, mandatory=True)
@@ -18,238 +16,192 @@ class Denuncia(Fact):
     testemunhas = Field(list, mandatory=False)
     provas = Field(bool, mandatory=True)
 
-class ClassificacaoFeita(Fact):
-    """Caso uma classificação de conduta ou crime já tenha sido identificada"""
-    pass
+ACOES_ASSEDIO = [
+    "Aproximação física insistente",
+    "Beijo na bochecha", "Beijo na boca", "Beijo na testa", "Beijo no pescoço",
+    "Cantadas", "Encosto intencional em partes íntimas",
+    "Oferecimento de vantagens em troca de favores sexuais",
+    "Ameaças para favores sexuais"
+]
 
-# MOTOR DE INFERÊNCIA
+ACOES_IMPORTUNACAO = [
+    "Divulgação de conteúdo íntimo", "Envio de mensagens de teor sexual",
+    "Envio de fotos com teor sexual", "Perseguição", "Perseguição virtual",
+    "Humilhações sexistas", "Zombarias públicas"
+]
+
+ACOES_CONDUTA = [
+    "Exposição de Fetiches", "Expressão de gírias de cunho sexual",
+    "Falas com conotação sexual", "Insinuações sobre desempenho sexual",
+    "Linguagem corporal insinuante", "Questionamentos íntimos"
+]
+
+LEIS_REFERENCIA = {
+    "Assédio Sexual Vertical": {
+        "lei": "Art. 216-A do Código Penal",
+        "descricao": "Assediar alguém com hierarquia superior, com o objetivo de obter vantagem ou favorecimento sexual."
+    },
+    "Assédio Sexual Horizontal": {
+        "lei": "Art. 216-A do Código Penal",
+        "descricao": "Assédio praticado por colega ou pessoa do mesmo nível hierárquico, ainda que não haja relação de poder formal."
+    },
+    "Importunação Sexual": {
+        "lei": "Art. 215-A do Código Penal",
+        "descricao": "Praticar ato libidinoso sem consentimento para satisfazer desejo próprio ou de terceiros."
+    },
+    "Conduta Sexual": {
+        "lei": "Pode configurar infração ética ou administrativa",
+        "descricao": "Comportamentos inadequados de cunho sexual que não chegam a configurar crime, mas violam o respeito no ambiente."
+    }
+}
+
+LOCAIS_SENSIVEIS = [
+    "Transporte Público", "Sala de aula", "Escritório", "Saguão",
+    "Corredor A", "Corredor B", "Pátio", "Portão de entrada", "Portão de saída"
+]
+
 class AgenteAssedio(KnowledgeEngine):
     def __init__(self):
         super().__init__()
-        self.resultados = []
+        self.resultados = set()
         self.explicacoes = []
+        self.orientacoes = []
+        self.contexto = {}
 
-    # Aproximação física insistente
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consent, hierarquia_maior=MATCH.hierarquia),
-        TEST(lambda acoes, consent: "Aproximação física insistente" in acoes and not consent.get("Aproximação física insistente", True))
-    )
-    def aproximacao_fisica(self):
-        if self.facts[1]['hierarquia_maior']:
-            self.resultados.append("Assédio Sexual Vertical")
+    # METODO MAIS DETALHADO DE CLASSIFICACAO DE ASSEDIO SEXUAL
+    def classificar(self, tipo, acao, extra=None):
+        if tipo == "Assédio Sexual":
+            subtipo = "Vertical" if extra else "Horizontal"
+            tipo = f"{tipo} {subtipo}"
+            self.resultados.add(tipo)
             self.explicacoes.append(
-                "SE houver aproximação física insistente sem consentimento e existir relação de hierarquia, "
-                "ENTÃO configura Assédio Sexual Vertical."
+                f"SE houver {acao} sem consentimento e {'com' if extra else 'sem'} hierarquia, "
+                f"ENTÃO configura {tipo}."
             )
         else:
-            self.resultados.append("Assédio Sexual Horizontal")
-            self.explicacoes.append(
-                "SE houver aproximação física insistente sem consentimento e não houver relação de hierarquia, "
-                "ENTÃO configura Assédio Sexual Horizontal."
-            )
+            self.resultados.add(tipo)
+            self.explicacoes.append(f"SE houver {acao}, ENTÃO configura {tipo}.")
 
-    # Beijos (bochecha, boca, testa, pescoço)
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consent, hierarquia_maior=MATCH.hierarquia),
-        TEST(lambda acoes, consent: any(
-            b in acoes and not consent.get(b, True)
-            for b in ["Beijo na bochecha", "Beijo na boca", "Beijo na testa", "Beijo no pescoço"]
-        ))
-    )
-    def beijos(self):
-        hierarquia = self.facts[1]['hierarquia_maior']
-        if hierarquia:
-            self.resultados.append("Assédio Sexual Vertical")
-            self.explicacoes.append(
-                "SE houver beijo sem consentimento e existir relação de hierarquia, "
-                "ENTÃO configura Assédio Sexual Vertical."
+    # METODO UM POUCO MAIS GENERICO PARA ANALISE DAS ACOES FEITAS PELO DENUNCIANTE
+    @Rule(Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consent,
+                   hierarquia_maior=MATCH.hierarquia, provas=MATCH.provas,
+                   testemunhas=MATCH.testemunhas, periodo_ocorrencia=MATCH.periodo,
+                   local_ocorrencia=MATCH.local, periodo_data_ocorrencia=MATCH.periodos,
+                   data_ocorrencia=MATCH.data_atual,
+                   nome_denunciante=MATCH.vitima, nome_denunciado=MATCH.acusado))
+    def analisar_acoes(self, acoes, consent, hierarquia, provas, testemunhas, periodo, local, periodos, data_atual, vitima, acusado):
+        # DEFININDO CONTEXTO PARA FUTURA EXPLICABILIDADE
+        self.contexto = {
+            "provas": provas,
+            "testemunhas": testemunhas,
+            "periodo": periodo,
+            "local": local,
+            "periodo_data": periodos,
+            "data_ocorrencia": data_atual,
+            "vitima": vitima,
+            "acusado": acusado
+        }
+        for acao in acoes:
+            if acao in ACOES_ASSEDIO:
+                if not consent.get(acao, True):
+                    self.classificar("Assédio Sexual", acao, hierarquia or acao in ["Oferecimento de vantagens em troca de favores sexuais", "Ameaças para favores sexuais"])
+            elif acao in ACOES_IMPORTUNACAO:
+                if not consent.get(acao, True) or acao in ["Divulgação de conteúdo íntimo", "Perseguição", "Zombarias públicas", "Humilhações sexistas"]:
+                    self.classificar("Importunação Sexual", acao)
+            elif acao in ACOES_CONDUTA:
+                self.classificar("Conduta Sexual", acao)
+
+    # METODOS DE FORMATACAO SIMPLES PARA TESTEMUNHAS E PERIODOS PARA EXPLICABILIDADE
+    def formatar_testemunhas(self, lista):
+        if not lista:
+            return ""
+        if len(lista) == 1:
+            return lista[0]
+        if len(lista) == 2:
+            return f"{lista[0]} e {lista[1]}"
+        return f"{', '.join(lista[:-1])} e {lista[-1]}"
+
+    def formatar_periodos(self, lista):
+        periodos = []
+        for i in range(0, len(lista), 2):
+            try:
+                inicio = lista[i].strftime("%d/%m/%Y")
+                fim = lista[i+1].strftime("%d/%m/%Y")
+                periodos.append(f"entre {inicio} e {fim}")
+            except:
+                continue
+        return periodos
+
+    # METODO RESPONSAVEL POR GERAR AS ORIENTAÇÕES PARA O DENUNCIANTE
+    def orientar(self):
+        provas = self.contexto.get("provas")
+        testemunhas = self.contexto.get("testemunhas")
+        periodo = self.contexto.get("periodo")
+        local = self.contexto.get("local")
+        vitima = self.contexto.get("vitima")
+        acusado = self.contexto.get("acusado")
+        periodos = self.contexto.get("periodo_data")
+        data_ocorrencia = self.contexto.get("data_ocorrencia")
+
+        descricao_tipos = []
+        leis_citadas = []
+
+        for tipo in self.resultados:
+            info = LEIS_REFERENCIA.get(tipo, {})
+            if info:
+                descricao_tipos.append(f"{tipo}: '{info['descricao']}'")
+                leis_citadas.append(f"{tipo} — {info['lei']}")
+
+        recomendacao = f"{vitima}, você relatou uma situação envolvendo {acusado}, que se enquadra nas seguintes classificações: \n- " + "\n- ".join(descricao_tipos) + ".\n\n"
+
+        recomendacao += f"A última ocorrência relatada foi em {data_ocorrencia.strftime('%d/%m/%Y')}. "
+
+        if periodos:
+            lista_formatada = self.formatar_periodos(periodos)
+            if lista_formatada:
+                recomendacao += "Esses comportamentos já ocorreram antes " + ", ".join(lista_formatada) + ". "
+
+        if provas:
+            recomendacao += "Você mencionou possuir provas, o que pode fortalecer sua denúncia e facilitar a responsabilização do acusado. "
+        else:
+            recomendacao += "Mesmo sem provas materiais, seu relato é válido e pode ser suficiente para iniciar uma apuração. "
+
+        if testemunhas:
+            nomes = self.formatar_testemunhas(testemunhas)
+            recomendacao += f"As testemunhas que podem corroborar sua versão são: {nomes}. Isso pode aumentar a credibilidade do seu relato. "
+        else:
+            recomendacao += "Não foram indicadas testemunhas, mas forneça todos os detalhes que puder. "
+
+        if periodo in ["Já ocorreu antes", "Ocorreu muitas vezes antes"]:
+            recomendacao += "O fato de a conduta ter ocorrido repetidamente indica padrão de comportamento e deve ser destacado. "
+        elif periodo == "Nunca ocorreu":
+            recomendacao += "Mesmo sendo a primeira ocorrência, o ato relatado é grave e merece atenção. "
+
+        if local in LOCAIS_SENSIVEIS:
+            recomendacao += f"O local do ocorrido ({local}) é um espaço sensível e institucional, o que torna o episódio ainda mais preocupante. "
+
+        assedio_detectado = any("Assédio Sexual" in tipo for tipo in self.resultados)
+        reincidente = (
+                    periodo in ["Já ocorreu antes", "Ocorreu muitas vezes antes"] or (periodos and len(periodos) > 0))
+
+        if assedio_detectado:
+            recomendacao += (
+                "Dado que o caso envolve assédio sexual, recomendamos fortemente que você registre um boletim de ocorrência, "
+                "além de comunicar o fato aos canais formais da instituição, como a ouvidoria. Casos de assédio são graves e merecem apuração imediata. "
+            )
+        elif reincidente:
+            recomendacao += (
+                "Como o comportamento relatado se repetiu em outras ocasiões, é aconselhável registrar um boletim de ocorrência, "
+                "além de procurar a ouvidoria ou os canais internos da instituição. A reincidência torna o caso ainda mais sério e merece atenção das autoridades. "
             )
         else:
-            self.resultados.append("Assédio Sexual Horizontal")
-            self.explicacoes.append(
-                "SE houver beijo sem consentimento e não houver relação de hierarquia, "
-                "ENTÃO configura Assédio Sexual Horizontal."
+            recomendacao += (
+                "Recomendamos que você procure os canais formais da instituição, como a ouvidoria, para relatar a situação. "
+                "Mesmo ocorrendo pela primeira vez, seu relato é importante para prevenir futuras ocorrências. "
             )
 
-    # Cantadas
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consent, hierarquia_maior=MATCH.hierarquia),
-        TEST(lambda acoes, consent: "Cantadas" in acoes and not consent.get("Cantadas", True))
-    )
-    def cantadas(self):
-        if self.facts[1]['hierarquia_maior']:
-            self.resultados.append("Assédio Sexual Vertical")
-            self.explicacoes.append(
-                "SE houver cantadas sem consentimento em contexto hierárquico, "
-                "ENTÃO configura Assédio Sexual Vertical."
-            )
-        else:
-            self.resultados.append("Assédio Sexual Horizontal")
-            self.explicacoes.append(
-                "SE houver cantadas sem consentimento e não houver relação hierárquica, "
-                "ENTÃO configura Assédio Sexual Horizontal."
-            )
+        recomendacao += "Você tem direito a um ambiente seguro e respeitoso."
 
-    # Divulgação de conteúdo íntimo
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Divulgação de conteúdo íntimo" in acoes)
-    )
-    def divulgacao_conteudo(self):
-        self.resultados.append("Importunação Sexual")
-        self.explicacoes.append(
-            "SE houver divulgação de conteúdo íntimo, "
-            "ENTÃO configura Importunação Sexual."
-        )
-
-    # Encosto intencional em partes íntimas
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consent, hierarquia_maior=MATCH.hierarquia),
-        TEST(lambda acoes, consent: "Encosto intencional em partes íntimas" in acoes and not consent.get("Encosto intencional em partes íntimas", True))
-    )
-    def encosto_intencional(self):
-        if self.facts[1]['hierarquia_maior']:
-            self.resultados.append("Assédio Sexual Vertical")
-            self.explicacoes.append(
-                "SE houver encosto intencional em partes íntimas sem consentimento e existir relação hierárquica, "
-                "ENTÃO configura Assédio Sexual Vertical."
-            )
-        else:
-            self.resultados.append("Assédio Sexual Horizontal")
-            self.explicacoes.append(
-                "SE houver encosto intencional em partes íntimas sem consentimento e não houver relação hierárquica, "
-                "ENTÃO configura Assédio Sexual Horizontal."
-            )
-
-    # Envio de mensagens/fotos com teor sexual
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consent),
-        TEST(lambda acoes, consent: ("Envio de mensagens de teor sexual" in acoes and not consent.get("Envio de mensagens de teor sexual", True))
-                                    or ("Envio de fotos com teor sexual" in acoes and not consent.get("Envio de fotos com teor sexual", True)))
-    )
-    def envio_teor_sexual(self):
-        self.resultados.append("Importunação Sexual")
-        self.explicacoes.append(
-            "SE houver envio de mensagens ou fotos com teor sexual sem consentimento, "
-            "ENTÃO configura Importunação Sexual."
-        )
-
-    # Exposição de Fetiches
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Exposição de Fetiches" in acoes)
-    )
-    def exposicao_fetiches(self):
-        self.resultados.append("Conduta Sexual")
-        self.explicacoes.append(
-            "SE houver exposição de fetiches, "
-            "ENTÃO pode configurar Conduta Sexual, dependendo do contexto."
-        )
-
-    # Expressão de gírias de cunho sexual
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Expressão de gírias de cunho sexual" in acoes)
-    )
-    def girias_cunho_sexual(self):
-        self.resultados.append("Conduta Sexual")
-        self.explicacoes.append(
-            "SE houver expressão de gírias de cunho sexual, "
-            "ENTÃO pode configurar Conduta Sexual inadequada."
-        )
-
-    # Falas com conotação sexual
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Falas com conotação sexual" in acoes)
-    )
-    def falas_conotacao(self):
-        self.resultados.append("Conduta Sexual")
-        self.explicacoes.append(
-            "SE houver falas com conotação sexual, "
-            "ENTÃO pode configurar Conduta Sexual inadequada."
-        )
-
-    # Humilhações sexistas
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Humilhações sexistas" in acoes)
-    )
-    def humilhacoes_sexistas(self):
-        self.resultados.append("Importunação Sexual")
-        self.explicacoes.append(
-            "SE houver humilhações sexistas, "
-            "ENTÃO configura Importunação Sexual."
-        )
-
-    # Insinuações sobre desempenho sexual
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Insinuações sobre desempenho sexual" in acoes)
-    )
-    def insinuacoes_desempenho(self):
-        self.resultados.append("Conduta Sexual")
-        self.explicacoes.append(
-            "SE houver insinuações sobre desempenho sexual, "
-            "ENTÃO pode configurar Conduta Sexual inadequada."
-        )
-
-    # Linguagem corporal insinuante
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Linguagem corporal insinuante" in acoes)
-    )
-    def linguagem_corporal(self):
-        self.resultados.append("Conduta Sexual")
-        self.explicacoes.append(
-            "SE houver linguagem corporal insinuante, "
-            "ENTÃO pode configurar Conduta Sexual inadequada."
-        )
-
-    # Oferecimento de vantagens em troca de favores sexuais
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Oferecimento de vantagens em troca de favores sexuais" in acoes)
-    )
-    def vantagens_por_favores(self):
-        self.resultados.append("Assédio Sexual Vertical")
-        self.explicacoes.append(
-            "SE houver oferecimento de vantagens em troca de favores sexuais, "
-            "ENTÃO configura Assédio Sexual Vertical por abuso de hierarquia."
-        )
-
-    # Perseguição e Perseguição virtual
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Perseguição" in acoes or "Perseguição virtual" in acoes)
-    )
-    def perseguicoes(self):
-        self.resultados.append("Importunação Sexual")
-        self.explicacoes.append(
-            "SE houver perseguição ou perseguição virtual, "
-            "ENTÃO configura Importunação Sexual."
-        )
-
-    # Questionamentos íntimos
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Questionamentos íntimos" in acoes)
-    )
-    def questionamentos(self):
-        self.resultados.append("Conduta Sexual")
-        self.explicacoes.append(
-            "SE houver questionamentos íntimos, "
-            "ENTÃO pode configurar Conduta Sexual inadequada."
-        )
-
-    # Zombarias públicas
-    @Rule(
-        Denuncia(acoes_realizadas=MATCH.acoes),
-        TEST(lambda acoes: "Zombarias públicas" in acoes)
-    )
-    def zombarias_publicas(self):
-        self.resultados.append("Importunação Sexual")
-        self.explicacoes.append(
-            "SE houver zombarias públicas, "
-            "ENTÃO configura Importunação Sexual."
+        self.orientacoes.append(
+            "\n".join(leis_citadas) + "\n\n" + recomendacao
         )
