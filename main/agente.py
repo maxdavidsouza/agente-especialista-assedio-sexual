@@ -115,12 +115,12 @@ class AgenteAssedio(KnowledgeEngine):
         for acao in acoes:
             if acao in ACOES_ASSEDIO:
                 if not consent.get(acao, True):
-                    subtipo = "Vertical" if hierarquia or acao in [
-                        "Oferecimento de vantagens em troca de favores sexuais",
-                        "Ameaças para favores sexuais"
-                    ] else "Horizontal"
-                    self.declare(
-                        Classificacao(tipo="Assédio Sexual", subtipo=subtipo, acao=acao, motivo="sem consentimento"))
+                    if hierarquia:
+                        self.declare(
+                            Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao, motivo="sem consentimento"))
+                    else:
+                        self.declare(
+                            Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao, motivo="sem consentimento"))
                 else:
                     self.declare(
                         Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
