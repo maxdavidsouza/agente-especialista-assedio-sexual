@@ -135,7 +135,6 @@ def main():
             for explicacao in engine.explicacoes:
                 st.write(f"- {explicacao}")
 
-            engine.orientar()
             st.subheader("Orientações:")
             for orientacoes in engine.orientacoes:
                 st.text(f"- {orientacoes}")

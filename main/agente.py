@@ -1,6 +1,7 @@
 from experta import *
 from datetime import datetime
 
+
 class Denuncia(Fact):
     nome_denunciante = Field(str, mandatory=True)
     sexo_denunciante = Field(str, mandatory=True)
@@ -16,17 +17,37 @@ class Denuncia(Fact):
     testemunhas = Field(list, mandatory=False)
     provas = Field(bool, mandatory=True)
 
+
+class Classificacao(Fact):
+    """Trata-se de uma classificacao declarada pelo agente, baseado nas r. de inf."""
+    tipo = Field(str)
+    subtipo = Field(str)
+    acao = Field(str)
+    motivo = Field(str)
+
+
+class Orientacao(Fact):
+    """Trata-se de uma orientação declarada pelo agente, baseada no guia"""
+    mensagem = Field(str)
+
+
+class Conclusao(Fact):
+    """Sinaliza a conclusão obtida pelo agente (serve mais para gerar
+    a orientação final sem a necessidade de chamar o engine.orientar()"""
+    pass
+
+
 ACOES_ASSEDIO = [
     "Aproximação física insistente",
     "Beijo na bochecha", "Beijo na boca", "Beijo na testa", "Beijo no pescoço",
-    "Cantadas", "Encosto intencional em partes íntimas",
+    "Encosto intencional em partes íntimas",
     "Oferecimento de vantagens em troca de favores sexuais",
     "Ameaças para favores sexuais"
 ]
 
 ACOES_IMPORTUNACAO = [
     "Divulgação de conteúdo íntimo", "Envio de mensagens de teor sexual",
-    "Envio de fotos com teor sexual", "Perseguição", "Perseguição virtual",
+    "Cantadas", "Envio de fotos com teor sexual", "Perseguição", "Perseguição virtual",
     "Humilhações sexistas", "Zombarias públicas"
 ]
 
@@ -55,10 +76,11 @@ LEIS_REFERENCIA = {
     }
 }
 
-LOCAIS_SENSIVEIS = [
+LOCAIS = [
     "Transporte Público", "Sala de aula", "Escritório", "Saguão",
     "Corredor A", "Corredor B", "Pátio", "Portão de entrada", "Portão de saída"
 ]
+
 
 class AgenteAssedio(KnowledgeEngine):
     def __init__(self):
@@ -67,20 +89,7 @@ class AgenteAssedio(KnowledgeEngine):
         self.explicacoes = []
         self.orientacoes = []
         self.contexto = {}
-
-    # METODO MAIS DETALHADO DE CLASSIFICACAO DE ASSEDIO SEXUAL
-    def classificar(self, tipo, acao, extra=None):
-        if tipo == "Assédio Sexual":
-            subtipo = "Vertical" if extra else "Horizontal"
-            tipo = f"{tipo} {subtipo}"
-            self.resultados.add(tipo)
-            self.explicacoes.append(
-                f"SE houver {acao} sem consentimento e {'com' if extra else 'sem'} hierarquia, "
-                f"ENTÃO configura {tipo}."
-            )
-        else:
-            self.resultados.add(tipo)
-            self.explicacoes.append(f"SE houver {acao}, ENTÃO configura {tipo}.")
+        self.fatos_gerados = []
 
     # METODO UM POUCO MAIS GENERICO PARA ANALISE DAS ACOES FEITAS PELO DENUNCIANTE
     @Rule(Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consent,
@@ -89,7 +98,8 @@ class AgenteAssedio(KnowledgeEngine):
                    local_ocorrencia=MATCH.local, periodo_data_ocorrencia=MATCH.periodos,
                    data_ocorrencia=MATCH.data_atual,
                    nome_denunciante=MATCH.vitima, nome_denunciado=MATCH.acusado))
-    def analisar_acoes(self, acoes, consent, hierarquia, provas, testemunhas, periodo, local, periodos, data_atual, vitima, acusado):
+    def analisar_acoes(self, acoes, consent, hierarquia, provas, testemunhas, periodo, local, periodos, data_atual,
+                       vitima, acusado):
         # DEFININDO CONTEXTO PARA FUTURA EXPLICABILIDADE
         self.contexto = {
             "provas": provas,
@@ -101,107 +111,134 @@ class AgenteAssedio(KnowledgeEngine):
             "vitima": vitima,
             "acusado": acusado
         }
+
         for acao in acoes:
             if acao in ACOES_ASSEDIO:
                 if not consent.get(acao, True):
-                    self.classificar("Assédio Sexual", acao, hierarquia or acao in ["Oferecimento de vantagens em troca de favores sexuais", "Ameaças para favores sexuais"])
+                    subtipo = "Vertical" if hierarquia or acao in [
+                        "Oferecimento de vantagens em troca de favores sexuais",
+                        "Ameaças para favores sexuais"
+                    ] else "Horizontal"
+                    self.declare(
+                        Classificacao(tipo="Assédio Sexual", subtipo=subtipo, acao=acao, motivo="sem consentimento"))
+                else:
+                    self.declare(
+                        Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
+
             elif acao in ACOES_IMPORTUNACAO:
-                if not consent.get(acao, True) or acao in ["Divulgação de conteúdo íntimo", "Perseguição", "Zombarias públicas", "Humilhações sexistas"]:
-                    self.classificar("Importunação Sexual", acao)
+                if not consent.get(acao, True) or acao in [
+                    "Divulgação de conteúdo íntimo", "Perseguição",
+                    "Zombarias públicas", "Humilhações sexistas"
+                ]:
+                    self.declare(Classificacao(tipo="Importunação Sexual", subtipo="", acao=acao,
+                                               motivo="sem consentimento ou violência moral"))
+                else:
+                    self.declare(
+                        Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
+
             elif acao in ACOES_CONDUTA:
-                self.classificar("Conduta Sexual", acao)
+                self.declare(Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="conduta inadequada"))
 
-    # METODOS DE FORMATACAO SIMPLES PARA TESTEMUNHAS E PERIODOS PARA EXPLICABILIDADE
-    def formatar_testemunhas(self, lista):
-        if not lista:
-            return ""
-        if len(lista) == 1:
-            return lista[0]
-        if len(lista) == 2:
-            return f"{lista[0]} e {lista[1]}"
-        return f"{', '.join(lista[:-1])} e {lista[-1]}"
+        self.declare(Conclusao())
 
-    def formatar_periodos(self, lista):
-        periodos = []
-        for i in range(0, len(lista), 2):
-            try:
-                inicio = lista[i].strftime("%d/%m/%Y")
-                fim = lista[i+1].strftime("%d/%m/%Y")
-                periodos.append(f"entre {inicio} e {fim}")
-            except:
-                continue
-        return periodos
+    # METODO MAIS DETALHADO DE CLASSIFICACAO DE ASSEDIO SEXUAL
+    @Rule(Classificacao(tipo=MATCH.tipo, subtipo=MATCH.subtipo, acao=MATCH.acao, motivo=MATCH.motivo))
+    def explicar(self, tipo, subtipo, acao, motivo):
+        chave = f"{tipo} ({subtipo})" if subtipo else tipo
+        self.resultados.add(chave)
 
-    # METODO RESPONSAVEL POR GERAR AS ORIENTAÇÕES PARA O DENUNCIANTE
-    def orientar(self):
-        provas = self.contexto.get("provas")
-        testemunhas = self.contexto.get("testemunhas")
-        periodo = self.contexto.get("periodo")
-        local = self.contexto.get("local")
-        vitima = self.contexto.get("vitima")
-        acusado = self.contexto.get("acusado")
-        periodos = self.contexto.get("periodo_data")
-        data_ocorrencia = self.contexto.get("data_ocorrencia")
+        if subtipo == "Horizontal":
+            self.explicacoes.append(
+                f"SE houve {acao} por colega ou desconhecido {motivo}, ENTÃO pode haver {chave}."
+            )
+        elif subtipo == "Vertical":
+            self.explicacoes.append(
+                f"SE houve {acao} por superior hierárquico {motivo}, ENTÃO pode haver {chave}."
+            )
+        else:
+            self.explicacoes.append(
+                f"SE houve {acao} {motivo}, ENTÃO pode haver {tipo}."
+            )
 
-        descricao_tipos = []
-        leis_citadas = []
+        self.fatos_gerados.append(Classificacao(tipo=tipo, subtipo=subtipo, acao=acao, motivo=motivo))
 
-        for tipo in self.resultados:
-            info = LEIS_REFERENCIA.get(tipo, {})
-            if info:
-                descricao_tipos.append(f"{tipo}: '{info['descricao']}'")
-                leis_citadas.append(f"{tipo} — {info['lei']}")
+    @Rule(Denuncia(provas=True))
+    def orientar_com_provas(self):
+        self.declare(Orientacao(
+            mensagem="Como há provas do ocorrido, isso fortalece o processo de apuração e responsabilização. Guarde e compartilhe essas evidências com os canais oficiais."
+        ))
 
-        recomendacao = f"{vitima}, você relatou uma situação envolvendo {acusado}, que se enquadra nas seguintes classificações: \n- " + "\n- ".join(descricao_tipos) + ".\n\n"
+    @Rule(Denuncia(provas=False))
+    def orientar_sem_provas(self):
+        self.declare(Orientacao(
+            mensagem="Mesmo sem provas materiais, seu relato é importante."
+        ))
 
-        recomendacao += f"A última ocorrência relatada foi em {data_ocorrencia.strftime('%d/%m/%Y')}. "
+    @Rule(Denuncia(periodo_ocorrencia="Nunca ocorreu"))
+    def orientar_nunca_ocorreu(self):
+        self.declare(Orientacao(
+            mensagem="Você sinalizou que a situação nunca ocorreu. Caso venha a ocorrer, procure registrar os fatos detalhadamente."
+        ))
 
+    @Rule(Denuncia(periodo_ocorrencia="Já ocorreu antes"))
+    def orientar_ocorreu_uma_vez(self):
+        self.declare(Orientacao(
+            mensagem="Como a situação já ocorreu anteriormente, é importante avaliar se há padrão de comportamento. Registre os detalhes e busque orientação especializada."
+        ))
+
+    @Rule(Denuncia(periodo_ocorrencia="Ocorreu muitas vezes antes"))
+    def orientar_ocorreu_muitas_vezes(self):
+        self.declare(Orientacao(
+            mensagem="A recorrência do comportamento é um agravante. Reúna informações e considere formalizar a denúncia imediatamente."
+        ))
+
+    @Rule(Denuncia(periodo_ocorrencia=MATCH.periodo,
+                   periodo_data_ocorrencia=MATCH.periodos),
+          TEST(lambda periodo, periodos: periodo in ["Já ocorreu antes", "Ocorreu muitas vezes antes"] and isinstance(
+              periodos, list)))
+    def orientar_com_periodos(self, periodo, periodos):
         if periodos:
-            lista_formatada = self.formatar_periodos(periodos)
-            if lista_formatada:
-                recomendacao += "Esses comportamentos já ocorreram antes " + ", ".join(lista_formatada) + ". "
-
-        if provas:
-            recomendacao += "Você mencionou possuir provas, o que pode fortalecer sua denúncia e facilitar a responsabilização do acusado. "
-        else:
-            recomendacao += "Mesmo sem provas materiais, seu relato é válido e pode ser suficiente para iniciar uma apuração. "
-
-        if testemunhas:
-            nomes = self.formatar_testemunhas(testemunhas)
-            recomendacao += f"As testemunhas que podem corroborar sua versão são: {nomes}. Isso pode aumentar a credibilidade do seu relato. "
-        else:
-            recomendacao += "Não foram indicadas testemunhas, mas forneça todos os detalhes que puder. "
-
-        if periodo in ["Já ocorreu antes", "Ocorreu muitas vezes antes"]:
-            recomendacao += "O fato de a conduta ter ocorrido repetidamente indica padrão de comportamento e deve ser destacado. "
-        elif periodo == "Nunca ocorreu":
-            recomendacao += "Mesmo sendo a primeira ocorrência, o ato relatado é grave e merece atenção. "
-
-        if local in LOCAIS_SENSIVEIS:
-            recomendacao += f"O local do ocorrido ({local}) é um espaço sensível e institucional, o que torna o episódio ainda mais preocupante. "
-
-        assedio_detectado = any("Assédio Sexual" in tipo for tipo in self.resultados)
-        reincidente = (
-                    periodo in ["Já ocorreu antes", "Ocorreu muitas vezes antes"] or (periodos and len(periodos) > 0))
-
-        if assedio_detectado:
-            recomendacao += (
-                "Dado que o caso envolve assédio sexual, recomendamos fortemente que você registre um boletim de ocorrência, "
-                "além de comunicar o fato aos canais formais da instituição, como a ouvidoria. Casos de assédio são graves e merecem apuração imediata. "
+            periodos_formatados = [
+                f"{inicio.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}"
+                for inicio, fim in periodos
+            ]
+            mensagem = (
+                    f"As ações ocorreram em {len(periodos)} período(s): " +
+                    "; ".join(periodos_formatados) +
+                    ". Isso ajuda a demonstrar a persistência e gravidade do comportamento."
             )
-        elif reincidente:
-            recomendacao += (
-                "Como o comportamento relatado se repetiu em outras ocasiões, é aconselhável registrar um boletim de ocorrência, "
-                "além de procurar a ouvidoria ou os canais internos da instituição. A reincidência torna o caso ainda mais sério e merece atenção das autoridades. "
-            )
-        else:
-            recomendacao += (
-                "Recomendamos que você procure os canais formais da instituição, como a ouvidoria, para relatar a situação. "
-                "Mesmo ocorrendo pela primeira vez, seu relato é importante para prevenir futuras ocorrências. "
-            )
+            self.declare(Orientacao(mensagem=mensagem))
 
-        recomendacao += "Você tem direito a um ambiente seguro e respeitoso."
+    @Rule(Denuncia(testemunhas=MATCH.testemunhas),
+          TEST(lambda testemunhas: testemunhas is not None and len(testemunhas) > 0))
+    def orientar_com_testemunhas(self, testemunhas):
+        nomes = ", ".join(testemunhas)
+        self.declare(Orientacao(
+            mensagem=f"Foram identificadas testemunhas do ocorrido: {nomes}. Elas podem contribuir no processo de apuração dos fatos."
+        ))
 
-        self.orientacoes.append(
-            "\n".join(leis_citadas) + "\n\n" + recomendacao
-        )
+    # Orientação para casos de Assédio Sexual
+    @Rule(OR(
+        Classificacao(tipo="Assédio Sexual", subtipo="Vertical"),
+        Classificacao(tipo="Assédio Sexual", subtipo="Horizontal")
+    ))
+    def orientar_boletim_ocorrencia(self):
+        self.declare(Orientacao(
+            mensagem="Recomendamos que você registre um boletim de ocorrência."))
+
+    # Orientação para casos de Importunação Sexual
+    @Rule(Classificacao(tipo="Importunação Sexual"))
+    def orientar_importunacao(self):
+        self.declare(
+            Orientacao(mensagem="Recomendamos comunicar o ocorrido à ouvidoria da UFAPE."))
+
+    # Orientação para casos de Conduta Sexual
+    @Rule(Classificacao(tipo="Conduta Sexual", acao=MATCH.acao))
+    def orientar_conduta(self, acao):
+        self.declare(Orientacao(
+            mensagem=f"Sugerimos que relate a situação de '{acao}' à diretoria da UFAPE, pois ainda que não seja crime, é inadequado para o ambiente acadêmico."))
+
+    # Registro da Orientação no conjunto de orientações
+    @Rule(Orientacao(mensagem=MATCH.msg))
+    def registrar_orientacao(self, msg):
+        self.orientacoes.append(msg)
