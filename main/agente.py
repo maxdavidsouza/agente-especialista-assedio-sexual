@@ -81,6 +81,24 @@ LOCAIS = [
     "Corredor A", "Corredor B", "Pátio", "Portão de entrada", "Portão de saída"
 ]
 
+GUIA_REFERENCIA = {
+    "Assédio Sexual Vertical": {
+        "pagina": "Página 5",
+        "trecho": "Situações de assédio sexual com hierarquia superior estão descritas na página 5 do Guia de Bolso sobre Assédio Sexual da UFAPE."
+    },
+    "Assédio Sexual Horizontal": {
+        "pagina": "Página 6",
+        "trecho": "Situações entre colegas ou pessoas do mesmo nível hierárquico estão explicadas na página 6 do Guia de Bolso."
+    },
+    "Importunação Sexual": {
+        "pagina": "Página 7",
+        "trecho": "A Importunação Sexual está detalhada na página 7 do Guia de Bolso."
+    },
+    "Conduta Sexual": {
+        "pagina": "Página 8",
+        "trecho": "A Conduta Sexual Inadequada, mesmo não sendo crime, é considerada infração ética ou disciplinar segundo a página 8 do Guia de Bolso."
+    }
+}
 
 class AgenteAssedio(KnowledgeEngine):
     def __init__(self):
@@ -242,3 +260,11 @@ class AgenteAssedio(KnowledgeEngine):
     @Rule(Orientacao(mensagem=MATCH.msg))
     def registrar_orientacao(self, msg):
         self.orientacoes.append(msg)
+        
+    @Rule(Classificacao(tipo=MATCH.tipo, subtipo=MATCH.subtipo, acao=MATCH.acao, motivo=MATCH.motivo))
+    def referenciar_guia(self, tipo, subtipo, acao, motivo):
+        chave = f"{tipo} {subtipo}".strip() if subtipo else tipo
+        guia_info = GUIA_REFERENCIA.get(chave) or GUIA_REFERENCIA.get(tipo)
+        if guia_info:
+            mensagem = f"De acordo com o {guia_info['pagina']}, {guia_info['trecho']}"
+            self.orientacoes.append(mensagem)
