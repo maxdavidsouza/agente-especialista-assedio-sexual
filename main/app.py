@@ -1,6 +1,9 @@
 import streamlit as st
 from datetime import datetime, date
 from agente import AgenteAssedio, Denuncia
+from fpdf import FPDF
+import os
+import subprocess
 
 def main():
     st.markdown("### Sistema Especialista - Guia de Bolso sobre Assédio Sexual")
@@ -43,7 +46,6 @@ def main():
         if data_inicial_periodo_ocorrencia > date.today():
             st.warning("A data inicial não pode ser no futuro.")
         periodo_data_ocorrencia = [data_inicial_periodo_ocorrencia, data_final_periodo_ocorrencia]
-
 
     hierarquia_maior = st.radio(
         "O denunciado ocupa cargo hierárquico superior ao da vítima?",
@@ -91,6 +93,7 @@ def main():
     engine = AgenteAssedio()
 
     if st.button("Registrar denúncia"):
+
         if not nome_denunciante or not nome_denunciado:
             st.error("Preencha os nomes do denunciado e da vítima.")
             return
@@ -123,23 +126,39 @@ def main():
         engine.declare(denuncia)
         engine.run()
 
+        st.session_state["resultados"] = list(set(engine.resultados))
+        st.session_state["explicacoes"] = engine.explicacoes.copy()
+        st.session_state["orientacoes"] = engine.orientacoes.copy()
+        st.session_state["denuncia_feita"] = True
+
+    if st.session_state.get("denuncia_feita"):
+
         st.subheader("Classificações encontradas:")
-        if engine.resultados:
-            resultados_exibidos = set()
-            for resultado in engine.resultados:
-                if resultado not in resultados_exibidos:
-                    resultados_exibidos.add(resultado)
-                    st.write(f"- {resultado}")
+        for resultado in st.session_state["resultados"]:
+            st.write(f"- {resultado}")
 
-            st.subheader("Justificativas:")
-            for explicacao in engine.explicacoes:
-                st.write(f"- {explicacao}")
+        st.subheader("Justificativas:")
+        for explicacao in st.session_state["explicacoes"]:
+            st.write(f"- {explicacao}")
 
-            st.subheader("Orientações:")
-            for orientacoes in engine.orientacoes:
-                st.text(f"- {orientacoes}")
-        else:
-            st.write("Não foi identificada nenhuma conduta ofensiva com os dados fornecidos acima.")
+        st.subheader("Orientações:")
+        for orientacao in st.session_state["orientacoes"]:
+            st.text(f"- {orientacao}")
+
+        if st.button("Gerar relatório em PDF"):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("helvetica", size=12)
+
+            for orientacao in st.session_state["orientacoes"]:
+                pdf.multi_cell(w=0, h=10, txt=orientacao)
+                pdf.ln()
+
+            file_path = "relatorio.pdf"
+            pdf.output(file_path)
+            os.startfile(file_path)
+            st.success(f"Relatório gerado: {file_path}")
+
 
 if __name__ == "__main__":
     main()
