@@ -129,6 +129,7 @@ def main():
         st.session_state["resultados"] = list(set(engine.resultados))
         st.session_state["explicacoes"] = engine.explicacoes.copy()
         st.session_state["orientacoes"] = engine.orientacoes.copy()
+        st.session_state["justificativas"] = engine.justificativas.copy()
         st.session_state["denuncia_feita"] = True
 
     if st.session_state.get("denuncia_feita"):
@@ -144,6 +145,10 @@ def main():
         st.subheader("Orientações:")
         for orientacao in st.session_state["orientacoes"]:
             st.text(f"- {orientacao}")
+
+        st.subheader("Referências:")
+        for justificativa in st.session_state["justificativas"]:
+            st.text(f"- {justificativa}")
 
         if st.button("Gerar relatório em PDF"):
             pdf = FPDF()

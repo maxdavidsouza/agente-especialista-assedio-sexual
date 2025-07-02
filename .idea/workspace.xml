@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="06bf2c02-2d8f-4fc0-96b7-f32d2b499115" name="Changes" comment="Corrigindo a implementação de subtipo de assédio.">
+    <list default="true" id="06bf2c02-2d8f-4fc0-96b7-f32d2b499115" name="Changes" comment="Adicionando uma geração de relatório .pdf no streamlit.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main/agente.py" beforeDir="false" afterPath="$PROJECT_DIR$/main/agente.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/main/app.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -111,7 +112,15 @@
       <option name="project" value="LOCAL" />
       <updated>1751326385831</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="Adicionando uma geração de relatório .pdf no streamlit.">
+      <option name="closed" value="true" />
+      <created>1751415450539</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1751415450539</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -131,6 +140,7 @@
     <MESSAGE value="Atualização do Motor de Inferência para interações mais complexas entre assédios, importunações e condutas, juntamente da explicabilidade e oferecimento de soluções." />
     <MESSAGE value="Reformulando a arquitetura do Motor de Inferência para simplificação de explicações e orientações do agente especialista." />
     <MESSAGE value="Corrigindo a implementação de subtipo de assédio." />
-    <option name="LAST_COMMIT_MESSAGE" value="Corrigindo a implementação de subtipo de assédio." />
+    <MESSAGE value="Adicionando uma geração de relatório .pdf no streamlit." />
+    <option name="LAST_COMMIT_MESSAGE" value="Adicionando uma geração de relatório .pdf no streamlit." />
   </component>
 </project>

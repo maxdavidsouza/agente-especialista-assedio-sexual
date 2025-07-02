@@ -31,6 +31,11 @@ class Orientacao(Fact):
     mensagem = Field(str)
 
 
+class Justificativa(Fact):
+    """Fato para armazenar justificativas baseadas no guia de referência."""
+    mensagem = Field(str)
+
+
 class Conclusao(Fact):
     """Sinaliza a conclusão obtida pelo agente (serve mais para gerar
     a orientação final sem a necessidade de chamar o engine.orientar()"""
@@ -83,26 +88,68 @@ LOCAIS = [
 
 GUIA_REFERENCIA = {
     "Assédio Sexual Vertical": {
-        "pagina": "Página 5",
-        "trecho": "Situações de assédio sexual com hierarquia superior estão descritas na página 5 do Guia de Bolso sobre Assédio Sexual da UFAPE."
+        "pagina": ["Página 11", "Página 23", "Página 24"],
+        "trecho": [
+            f"Ocorre quando uma pessoa se vale da sua condição de superioridade hierárquica ou de ascendência "
+            f"inerentes ao exercício de cargo ou função para constranger alguém com objetivo de obter vantagem ou "
+            f"favorecimento sexual.Essa forma clássica de assédio é caracterizada como crime"]
     },
     "Assédio Sexual Horizontal": {
-        "pagina": "Página 6",
-        "trecho": "Situações entre colegas ou pessoas do mesmo nível hierárquico estão explicadas na página 6 do Guia de Bolso."
+        "pagina": ["Página 11", "Página 23", "Página 25"],
+        "trecho": [
+            f"do Guia de Bolso sobre Assédio Sexual da UFAPE..",
+            f"A pessoa que assedia trabalha com a assediada, sem hierarquia. Um exemplo é o constrangimento entre colegas de trabalho"]
     },
     "Importunação Sexual": {
-        "pagina": "Página 7",
-        "trecho": "A Importunação Sexual está detalhada na página 7 do Guia de Bolso."
+        "pagina": ["Página 24", "Página 25"],
+        "trecho": [
+            """DESCRITA NO ART. 216-A DO CÓDIGO
+                PENAL, BEM COMO NO ART. 215-A,
+                IMPORTUNAÇÃO SEXUAL, SENADO
+                FEDERAL, 2017, P. 1.""",
+            """NÃO É “CRIME DE ASSÉDIO” PREVISTO NO CÓDIGO PENAL BRASILEIRO, 
+                 MAS PODE SER ENTENDIDO COMO O CRIME DE IMPORTUNAÇÃO SEXUAL 
+                 PREVISTO NO MESMO CÓDIGO PENAL, EM SEU ART. 215-A. PODE SER PUNIDO 
+                 ADMINISTRATIVAMENTE, CIVILMENTE E PENALMENTE (1 A 5 ANOS DE PRISÃO)."""
+        ]
     },
     "Conduta Sexual": {
-        "pagina": "Página 8",
-        "trecho": "A Conduta Sexual Inadequada, mesmo não sendo crime, é considerada infração ética ou disciplinar segundo a página 8 do Guia de Bolso."
+        "pagina": ["Página 12", "Página 13", "Página 15", "Página 19", "Página 20", "Página 21"],
+        "trecho": [
+            """Passou a ser o gênero que engloba tanto as situações mais gravosas, denominadas de “Assédio Sexual”,
+                como as demais situações, denominadas de “outras condutas de natureza sexual”.""",
+            """INSINUAÇÕES Incluem mensagens escritas, gestos, cantadas, chantagens ou ameaças.
+                CONTATOS FÍSICOS Forçados como condição para dar ou manter o emprego.
+                PREJUDICAR O rendimento profissional da pessoa por meio de comentários ou investidas sexuais.
+                HUMILHAR, INSULTAR OU INTIMIDAR A vítima de maneira sexual.
+                INFLUIR Nas promoções ou na carreira da pessoa.""",
+            """DÚVIDAS FREQUENTES SOBRE ASSÉDIO SEXUAL
+                Precisa ser literal?
+                Não. A abordagem pode ser sutil ou explícita.
+                
+                Precisa ter contato físico?
+                Não. Basta haver perseguição indesejada ou investida não consentida.
+                
+                O que caracteriza?
+                O não consentimento da pessoa assediada.
+                Tudo que é conduta sexual desagradável, ofensivo e impertinente pela vítima.""",
+            """OUTRAS CONDUTAS DE CONOTAÇÃO SEXUAL
+                Narração de piadas ou uso de expressões de conteúdo sexual.
+                Contato físico não desejado.
+                Convites impertinentes.
+                Criação de um ambiente pornográfico.
+                Promessas de tratamento diferenciado.
+                Ameaças veladas ou explícitas, de represálias, como a de perder o emprego."""
+        ]
+
     }
 }
+
 
 class AgenteAssedio(KnowledgeEngine):
     def __init__(self):
         super().__init__()
+        self.justificativas = []
         self.resultados = set()
         self.explicacoes = []
         self.orientacoes = []
@@ -135,10 +182,12 @@ class AgenteAssedio(KnowledgeEngine):
                 if not consent.get(acao, True):
                     if hierarquia:
                         self.declare(
-                            Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao, motivo="sem consentimento"))
+                            Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao,
+                                          motivo="sem consentimento"))
                     else:
                         self.declare(
-                            Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao, motivo="sem consentimento"))
+                            Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
+                                          motivo="sem consentimento"))
                 else:
                     self.declare(
                         Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
@@ -260,11 +309,30 @@ class AgenteAssedio(KnowledgeEngine):
     @Rule(Orientacao(mensagem=MATCH.msg))
     def registrar_orientacao(self, msg):
         self.orientacoes.append(msg)
-        
-    @Rule(Classificacao(tipo=MATCH.tipo, subtipo=MATCH.subtipo, acao=MATCH.acao, motivo=MATCH.motivo))
-    def referenciar_guia(self, tipo, subtipo, acao, motivo):
-        chave = f"{tipo} {subtipo}".strip() if subtipo else tipo
+
+    @Rule(Classificacao(tipo=MATCH.tipo, subtipo=MATCH.subtipo))
+    def referenciar_guia(self, tipo, subtipo):
+        if subtipo:
+            chave = f"{tipo} {subtipo}"
+        else:
+            chave = tipo
+
         guia_info = GUIA_REFERENCIA.get(chave) or GUIA_REFERENCIA.get(tipo)
         if guia_info:
-            mensagem = f"De acordo com o {guia_info['pagina']}, {guia_info['trecho']}"
-            self.orientacoes.append(mensagem)
+            paginas = ", ".join(str(p) for p in guia_info['pagina'])
+
+            trechos = guia_info['trecho']
+            if isinstance(trechos, str):
+                trechos = [trechos]
+
+            mensagem = f"Considerando o ato de {tipo}, de acordo com as páginas {paginas} do Guia de Bolso da UFAPE:\n\n"
+            mensagem += "\n\n".join(trecho.strip() for trecho in trechos)
+
+            # Verifica se já existe justificativa com essa mensagem para não duplicar
+            if not any(isinstance(f, Justificativa) and f['mensagem'] == mensagem for f in self.facts.values()):
+                self.declare(Justificativa(mensagem=mensagem))
+
+    @Rule(Justificativa(mensagem=MATCH.msg))
+    def registrar_justificativa(self, msg):
+        if msg not in self.justificativas:
+            self.justificativas.append(msg)
