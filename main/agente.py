@@ -62,25 +62,6 @@ ACOES_CONDUTA = [
     "Linguagem corporal insinuante", "Questionamentos íntimos"
 ]
 
-LEIS_REFERENCIA = {
-    "Assédio Sexual Vertical": {
-        "lei": "Art. 216-A do Código Penal",
-        "descricao": "Assediar alguém com hierarquia superior, com o objetivo de obter vantagem ou favorecimento sexual."
-    },
-    "Assédio Sexual Horizontal": {
-        "lei": "Art. 216-A do Código Penal",
-        "descricao": "Assédio praticado por colega ou pessoa do mesmo nível hierárquico, ainda que não haja relação de poder formal."
-    },
-    "Importunação Sexual": {
-        "lei": "Art. 215-A do Código Penal",
-        "descricao": "Praticar ato libidinoso sem consentimento para satisfazer desejo próprio ou de terceiros."
-    },
-    "Conduta Sexual": {
-        "lei": "Pode configurar infração ética ou administrativa",
-        "descricao": "Comportamentos inadequados de cunho sexual que não chegam a configurar crime, mas violam o respeito no ambiente."
-    }
-}
-
 LOCAIS = [
     "Transporte Público", "Sala de aula", "Escritório", "Saguão",
     "Corredor A", "Corredor B", "Pátio", "Portão de entrada", "Portão de saída"
@@ -183,28 +164,71 @@ class AgenteAssedio(KnowledgeEngine):
                     if hierarquia:
                         self.declare(
                             Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao,
-                                          motivo="sem consentimento"))
+                                          motivo="sem consentimento e com superioridade hierárquica"))
                     else:
                         self.declare(
                             Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
                                           motivo="sem consentimento"))
                 else:
-                    self.declare(
-                        Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
+                    if periodo == "ocorreu muitas vezes antes":
+                        self.declare(
+                            Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
+                                          motivo="com consentimento e alta reicidência"))
+                    elif periodo == "já ocorreu antes":
+                        self.declare(
+                            Classificacao(tipo="Importunação Sexual", subtipo="Horizontal", acao=acao,
+                                          motivo="com consentimento e leve reicidência"))
+                    else:
+                        self.declare(
+                            Classificacao(tipo=f"Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
 
             elif acao in ACOES_IMPORTUNACAO:
-                if not consent.get(acao, True) or acao in [
-                    "Divulgação de conteúdo íntimo", "Perseguição",
-                    "Zombarias públicas", "Humilhações sexistas"
-                ]:
-                    self.declare(Classificacao(tipo="Importunação Sexual", subtipo="", acao=acao,
-                                               motivo="sem consentimento ou violência moral"))
+                if not consent.get(acao, True):
+                    if periodo == "ocorreu muitas vezes antes":
+                        if hierarquia:
+                            self.declare(
+                                Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao,
+                                              motivo="sem consentimento, superioridade hierarquica e alta reicidência"))
+                        else:
+                            self.declare(
+                                Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
+                                              motivo="sem consentimento e alta reicidência"))
+                    else:
+                        self.declare(Classificacao(tipo="Importunação Sexual", subtipo="", acao=acao,
+                                                   motivo="sem consentimento"))
                 else:
-                    self.declare(
-                        Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
+                    if periodo == "ocorreu muitas vezes antes":
+                        if hierarquia:
+                            self.declare(
+                                Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao,
+                                              motivo="com consentimento, superioridade hierarquica e alta reicidência"))
+                        else:
+                            self.declare(
+                                Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
+                                              motivo="com consentimento e alta reicidência"))
+                    else:
+                        self.declare(
+                            Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
 
             elif acao in ACOES_CONDUTA:
-                self.declare(Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="conduta inadequada"))
+                if not consent.get(acao, True):
+                    if periodo == "ocorreu muitas vezes antes":
+                        if hierarquia:
+                            self.declare(
+                                Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao,
+                                              motivo="com consentimento, superioridade hierarquica e alta reicidência"))
+                        else:
+                            self.declare(
+                                Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
+                                              motivo="com consentimento e alta reicidência"))
+                    elif periodo == "já ocorreu antes":
+                        self.declare(Classificacao(tipo="Importunação Sexual", subtipo="", acao=acao,
+                                                   motivo="sem consentimento"))
+                    else:
+                        self.declare(Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="conduta inadequada"))
+                else:
+                    self.declare(
+                        Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="conduta inadequada"))
 
         self.declare(Conclusao())
 

@@ -132,7 +132,7 @@ def main():
         st.session_state["justificativas"] = engine.justificativas.copy()
         st.session_state["denuncia_feita"] = True
 
-    if st.session_state.get("denuncia_feita"):
+    if st.session_state.get("denuncia_feita") and engine.resultados:
 
         st.subheader("Classificações encontradas:")
         for resultado in st.session_state["resultados"]:
@@ -163,6 +163,10 @@ def main():
             pdf.output(file_path)
             os.startfile(file_path)
             st.success(f"Relatório gerado: {file_path}")
+
+    else:
+        st.subheader("Desculpe")
+        st.write(f"As informações fornecidas não se enquadram em quaisquer classificações conhecidas.")
 
 
 if __name__ == "__main__":
