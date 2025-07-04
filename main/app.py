@@ -3,7 +3,6 @@ from datetime import datetime, date
 from agente import AgenteAssedio, Denuncia
 from fpdf import FPDF
 import os
-import subprocess
 
 def main():
     st.markdown("### Sistema Especialista - Guia de Bolso sobre Assédio Sexual")
@@ -156,7 +155,7 @@ def main():
             pdf.set_font("helvetica", size=12)
 
             for orientacao in st.session_state["orientacoes"]:
-                pdf.multi_cell(w=0, h=10, txt=orientacao)
+                pdf.multi_cell(w=0, h=10, text=orientacao)
                 pdf.ln()
 
             file_path = "relatorio.pdf"

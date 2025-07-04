@@ -63,7 +63,7 @@ class AgenteAssedio(KnowledgeEngine):
             if acao in ACOES_ASSEDIO:
                 if not consentimento.get(acao, True):
                     motivo_de_ser_assedio = f"sem consentimento"
-                    self.declare(Classificacao(tipo="Assédio Sexual", subtipo="Vertical",
+                    self.declare(Classificacao(tipo="Assédio Sexual", subtipo="Horizontal",
                                                acao=acao, motivo=motivo_de_ser_assedio))
                     self.resultados.add(f"Assédio Sexual (Horizontal)")
 
