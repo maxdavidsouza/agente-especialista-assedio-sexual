@@ -1,8 +1,10 @@
 from experta import *
 from datetime import datetime
-
+from base_de_conhecimento import *
 
 class Denuncia(Fact):
+    """Trata-se de um fato declarado pelo usuário, baseado na estrutura
+     de uma denúncia feita à instituição deferida pelo guia de bolso"""
     nome_denunciante = Field(str, mandatory=True)
     sexo_denunciante = Field(str, mandatory=True)
     nome_denunciado = Field(str, mandatory=True)
@@ -35,98 +37,6 @@ class Justificativa(Fact):
     """Fato para armazenar justificativas baseadas no guia de referência."""
     mensagem = Field(str)
 
-
-class Conclusao(Fact):
-    """Sinaliza a conclusão obtida pelo agente (serve mais para gerar
-    a orientação final sem a necessidade de chamar o engine.orientar()"""
-    pass
-
-
-ACOES_ASSEDIO = [
-    "Aproximação física insistente",
-    "Beijo na bochecha", "Beijo na boca", "Beijo na testa", "Beijo no pescoço",
-    "Encosto intencional em partes íntimas",
-    "Oferecimento de vantagens em troca de favores sexuais",
-    "Ameaças para favores sexuais"
-]
-
-ACOES_IMPORTUNACAO = [
-    "Divulgação de conteúdo íntimo", "Envio de mensagens de teor sexual",
-    "Cantadas", "Envio de fotos com teor sexual", "Perseguição", "Perseguição virtual",
-    "Humilhações sexistas", "Zombarias públicas"
-]
-
-ACOES_CONDUTA = [
-    "Exposição de Fetiches", "Expressão de gírias de cunho sexual",
-    "Falas com conotação sexual", "Insinuações sobre desempenho sexual",
-    "Linguagem corporal insinuante", "Questionamentos íntimos"
-]
-
-LOCAIS = [
-    "Transporte Público", "Sala de aula", "Escritório", "Saguão",
-    "Corredor A", "Corredor B", "Pátio", "Portão de entrada", "Portão de saída"
-]
-
-GUIA_REFERENCIA = {
-    "Assédio Sexual Vertical": {
-        "pagina": ["Página 11", "Página 23", "Página 24"],
-        "trecho": [
-            f"Ocorre quando uma pessoa se vale da sua condição de superioridade hierárquica ou de ascendência "
-            f"inerentes ao exercício de cargo ou função para constranger alguém com objetivo de obter vantagem ou "
-            f"favorecimento sexual.Essa forma clássica de assédio é caracterizada como crime"]
-    },
-    "Assédio Sexual Horizontal": {
-        "pagina": ["Página 11", "Página 23", "Página 25"],
-        "trecho": [
-            f"do Guia de Bolso sobre Assédio Sexual da UFAPE..",
-            f"A pessoa que assedia trabalha com a assediada, sem hierarquia. Um exemplo é o constrangimento entre colegas de trabalho"]
-    },
-    "Importunação Sexual": {
-        "pagina": ["Página 24", "Página 25"],
-        "trecho": [
-            """DESCRITA NO ART. 216-A DO CÓDIGO
-                PENAL, BEM COMO NO ART. 215-A,
-                IMPORTUNAÇÃO SEXUAL, SENADO
-                FEDERAL, 2017, P. 1.""",
-            """NÃO É “CRIME DE ASSÉDIO” PREVISTO NO CÓDIGO PENAL BRASILEIRO, 
-                 MAS PODE SER ENTENDIDO COMO O CRIME DE IMPORTUNAÇÃO SEXUAL 
-                 PREVISTO NO MESMO CÓDIGO PENAL, EM SEU ART. 215-A. PODE SER PUNIDO 
-                 ADMINISTRATIVAMENTE, CIVILMENTE E PENALMENTE (1 A 5 ANOS DE PRISÃO)."""
-        ]
-    },
-    "Conduta Sexual": {
-        "pagina": ["Página 12", "Página 13", "Página 15", "Página 19", "Página 20", "Página 21"],
-        "trecho": [
-            """Passou a ser o gênero que engloba tanto as situações mais gravosas, denominadas de “Assédio Sexual”,
-                como as demais situações, denominadas de “outras condutas de natureza sexual”.""",
-            """INSINUAÇÕES Incluem mensagens escritas, gestos, cantadas, chantagens ou ameaças.
-                CONTATOS FÍSICOS Forçados como condição para dar ou manter o emprego.
-                PREJUDICAR O rendimento profissional da pessoa por meio de comentários ou investidas sexuais.
-                HUMILHAR, INSULTAR OU INTIMIDAR A vítima de maneira sexual.
-                INFLUIR Nas promoções ou na carreira da pessoa.""",
-            """DÚVIDAS FREQUENTES SOBRE ASSÉDIO SEXUAL
-                Precisa ser literal?
-                Não. A abordagem pode ser sutil ou explícita.
-                
-                Precisa ter contato físico?
-                Não. Basta haver perseguição indesejada ou investida não consentida.
-                
-                O que caracteriza?
-                O não consentimento da pessoa assediada.
-                Tudo que é conduta sexual desagradável, ofensivo e impertinente pela vítima.""",
-            """OUTRAS CONDUTAS DE CONOTAÇÃO SEXUAL
-                Narração de piadas ou uso de expressões de conteúdo sexual.
-                Contato físico não desejado.
-                Convites impertinentes.
-                Criação de um ambiente pornográfico.
-                Promessas de tratamento diferenciado.
-                Ameaças veladas ou explícitas, de represálias, como a de perder o emprego."""
-        ]
-
-    }
-}
-
-
 class AgenteAssedio(KnowledgeEngine):
     def __init__(self):
         super().__init__()
@@ -134,125 +44,68 @@ class AgenteAssedio(KnowledgeEngine):
         self.resultados = set()
         self.explicacoes = []
         self.orientacoes = []
-        self.contexto = {}
         self.fatos_gerados = []
 
-    # METODO UM POUCO MAIS GENERICO PARA ANALISE DAS ACOES FEITAS PELO DENUNCIANTE
-    @Rule(Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consent,
-                   hierarquia_maior=MATCH.hierarquia, provas=MATCH.provas,
-                   testemunhas=MATCH.testemunhas, periodo_ocorrencia=MATCH.periodo,
-                   local_ocorrencia=MATCH.local, periodo_data_ocorrencia=MATCH.periodos,
-                   data_ocorrencia=MATCH.data_atual,
-                   nome_denunciante=MATCH.vitima, nome_denunciado=MATCH.acusado))
-    def analisar_acoes(self, acoes, consent, hierarquia, provas, testemunhas, periodo, local, periodos, data_atual,
-                       vitima, acusado):
-        # DEFININDO CONTEXTO PARA FUTURA EXPLICABILIDADE
-        self.contexto = {
-            "provas": provas,
-            "testemunhas": testemunhas,
-            "periodo": periodo,
-            "local": local,
-            "periodo_data": periodos,
-            "data_ocorrencia": data_atual,
-            "vitima": vitima,
-            "acusado": acusado
-        }
-
+    #################### PARTE DE CLASSIFICAÇÃO DE AÇÕES ####################
+    @Rule(Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consentimento, hierarquia_maior=True))
+    def classificar_assedio_sexual_vertical(self, acoes, consentimento):
         for acao in acoes:
             if acao in ACOES_ASSEDIO:
-                if not consent.get(acao, True):
-                    if hierarquia:
-                        self.declare(
-                            Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao,
-                                          motivo="sem consentimento e com superioridade hierárquica"))
-                    else:
-                        self.declare(
-                            Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
-                                          motivo="sem consentimento"))
-                else:
-                    if periodo == "ocorreu muitas vezes antes":
-                        self.declare(
-                            Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
-                                          motivo="com consentimento e alta reicidência"))
-                    elif periodo == "já ocorreu antes":
-                        self.declare(
-                            Classificacao(tipo="Importunação Sexual", subtipo="Horizontal", acao=acao,
-                                          motivo="com consentimento e leve reicidência"))
-                    else:
-                        self.declare(
-                            Classificacao(tipo=f"Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
+                if not consentimento.get(acao, True):
+                    motivo_de_ser_assedio = f"sem consentimento"
+                    self.declare(Classificacao(tipo="Assédio Sexual", subtipo="Vertical",
+                                               acao=acao, motivo=motivo_de_ser_assedio))
+                    self.resultados.add(f"Assédio Sexual (Vertical)")
 
-            elif acao in ACOES_IMPORTUNACAO:
-                if not consent.get(acao, True):
-                    if periodo == "ocorreu muitas vezes antes":
-                        if hierarquia:
-                            self.declare(
-                                Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao,
-                                              motivo="sem consentimento, superioridade hierarquica e alta reicidência"))
-                        else:
-                            self.declare(
-                                Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
-                                              motivo="sem consentimento e alta reicidência"))
-                    else:
-                        self.declare(Classificacao(tipo="Importunação Sexual", subtipo="", acao=acao,
-                                                   motivo="sem consentimento"))
-                else:
-                    if periodo == "ocorreu muitas vezes antes":
-                        if hierarquia:
-                            self.declare(
-                                Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao,
-                                              motivo="com consentimento, superioridade hierarquica e alta reicidência"))
-                        else:
-                            self.declare(
-                                Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
-                                              motivo="com consentimento e alta reicidência"))
-                    else:
-                        self.declare(
-                            Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="com consentimento"))
+    @Rule(Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consentimento, hierarquia_maior=False))
+    def classificar_assedio_sexual_horizontal(self, acoes, consentimento):
+        for acao in acoes:
+            if acao in ACOES_ASSEDIO:
+                if not consentimento.get(acao, True):
+                    motivo_de_ser_assedio = f"sem consentimento"
+                    self.declare(Classificacao(tipo="Assédio Sexual", subtipo="Vertical",
+                                               acao=acao, motivo=motivo_de_ser_assedio))
+                    self.resultados.add(f"Assédio Sexual (Horizontal)")
 
-            elif acao in ACOES_CONDUTA:
-                if not consent.get(acao, True):
-                    if periodo == "ocorreu muitas vezes antes":
-                        if hierarquia:
-                            self.declare(
-                                Classificacao(tipo="Assédio Sexual", subtipo="Vertical", acao=acao,
-                                              motivo="com consentimento, superioridade hierarquica e alta reicidência"))
-                        else:
-                            self.declare(
-                                Classificacao(tipo="Assédio Sexual", subtipo="Horizontal", acao=acao,
-                                              motivo="com consentimento e alta reicidência"))
-                    elif periodo == "já ocorreu antes":
-                        self.declare(Classificacao(tipo="Importunação Sexual", subtipo="", acao=acao,
-                                                   motivo="sem consentimento"))
-                    else:
-                        self.declare(Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="conduta inadequada"))
-                else:
-                    self.declare(
-                        Classificacao(tipo="Conduta Sexual", subtipo="", acao=acao, motivo="conduta inadequada"))
+    @Rule(Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consentimento))
+    def classificar_importunacao_sexual(self, acoes, consentimento):
+        for acao in acoes:
+            if acao in ACOES_IMPORTUNACAO:
+                if not consentimento.get(acao, True):
+                    motivo_de_ser_assedio = f"sem consentimento"
+                    self.declare(Classificacao(tipo="Importunação Sexual", subtipo="",
+                                               acao=acao, motivo=motivo_de_ser_assedio))
+                    self.resultados.add(f"Importunação Sexual")
 
-        self.declare(Conclusao())
+    @Rule(Denuncia(acoes_realizadas=MATCH.acoes, consentimento=MATCH.consentimento))
+    def classificar_conduta_sexual_inadequada(self, acoes, consentimento):
+        for acao in acoes:
+            if acao in ACOES_CONDUTA:
+                if not consentimento.get(acao, True):
+                    motivo_de_ser_assedio = f"sem consentimento"
+                    self.declare(Classificacao(tipo="Conduta Sexual", subtipo="",
+                                               acao=acao, motivo=motivo_de_ser_assedio))
+                    self.resultados.add(f"Conduta Sexual Inadequada")
 
-    # METODO MAIS DETALHADO DE CLASSIFICACAO DE ASSEDIO SEXUAL
-    @Rule(Classificacao(tipo=MATCH.tipo, subtipo=MATCH.subtipo, acao=MATCH.acao, motivo=MATCH.motivo))
-    def explicar(self, tipo, subtipo, acao, motivo):
-        chave = f"{tipo} ({subtipo})" if subtipo else tipo
-        self.resultados.add(chave)
+    #################### PARTE DE EXPLICAÇÃO PARA O USUÁRIO ####################
 
-        if subtipo == "Horizontal":
-            self.explicacoes.append(
-                f"SE houve {acao} por colega ou desconhecido {motivo}, ENTÃO pode haver {chave}."
-            )
-        elif subtipo == "Vertical":
-            self.explicacoes.append(
-                f"SE houve {acao} por superior hierárquico {motivo}, ENTÃO pode haver {chave}."
-            )
-        else:
-            self.explicacoes.append(
-                f"SE houve {acao} {motivo}, ENTÃO pode haver {tipo}."
-            )
+    @Rule(Classificacao(tipo="Assédio Sexual",subtipo="Horizontal",acao=MATCH.acao, motivo=MATCH.motivo))
+    def explicar_assedio_sexual_horizontal(self, acao, motivo):
+        self.explicacoes.append(f"SE houve {acao} por colega ou desconhecido {motivo}, ENTÃO pode haver Assédio Sexual (Horizontal).")
 
-        self.fatos_gerados.append(Classificacao(tipo=tipo, subtipo=subtipo, acao=acao, motivo=motivo))
+    @Rule(Classificacao(tipo="Assédio Sexual",subtipo="Vertical",acao=MATCH.acao, motivo=MATCH.motivo))
+    def explicar_assedio_sexual_vertical(self, acao, motivo):
+        self.explicacoes.append(f"SE houve {acao} por superior hierárquico {motivo}, ENTÃO pode haver Assédio Sexual (Vertical).")
 
+    @Rule(Classificacao(tipo="Importunação Sexual", acao=MATCH.acao, motivo=MATCH.motivo))
+    def explicar_importunacao_sexual(self, acao, motivo):
+        self.explicacoes.append(f"SE houve {acao} {motivo} independente de hierarquia profissional, ENTÃO pode haver Importunação Sexual.")
+
+    @Rule(Classificacao(tipo="Conduta Sexual Inadequada", acao=MATCH.acao, motivo=MATCH.motivo))
+    def explicar_conduta_sexual_inadequada(self, acao, motivo):
+        self.explicacoes.append(f"SE houve {acao} {motivo} independente de hierarquia profissional, ENTÃO pode haver Conduta Sexual Inadequada.")
+
+    #################### PARTE DE ORIENTAÇÃO PARA O USUÁRIO ####################
     @Rule(Denuncia(provas=True))
     def orientar_com_provas(self):
         self.declare(Orientacao(
@@ -309,19 +162,20 @@ class AgenteAssedio(KnowledgeEngine):
         ))
 
     # Orientação para casos de Assédio Sexual
-    @Rule(OR(
-        Classificacao(tipo="Assédio Sexual", subtipo="Vertical"),
-        Classificacao(tipo="Assédio Sexual", subtipo="Horizontal")
-    ))
-    def orientar_boletim_ocorrencia(self):
-        self.declare(Orientacao(
-            mensagem="Recomendamos que você registre um boletim de ocorrência."))
+    @Rule(Classificacao(tipo="Assédio Sexual", subtipo=MATCH.subtipo, acao=MATCH.acao, motivo=MATCH.motivo))
+    def orientar_boletim_ocorrencia(self, subtipo, acao, motivo):
+        if(subtipo == "Vertical"):
+            self.declare(Orientacao(
+                mensagem=f"Recomendamos que você registre um boletim de ocorrência por conta de {acao} {motivo} por conhecido ou colega de trabalho."))
+        elif(subtipo == "Horizontal"):
+            self.declare(Orientacao(
+                mensagem=f"Recomendamos que você registre um boletim de ocorrência por conta de {acao} {motivo} por superior hierárquico."))
 
     # Orientação para casos de Importunação Sexual
-    @Rule(Classificacao(tipo="Importunação Sexual"))
-    def orientar_importunacao(self):
+    @Rule(Classificacao(tipo="Importunação Sexual", acao=MATCH.acao))
+    def orientar_importunacao(self, acao):
         self.declare(
-            Orientacao(mensagem="Recomendamos comunicar o ocorrido à ouvidoria da UFAPE."))
+            Orientacao(mensagem=f"Recomendamos comunicar o ato de {acao} à ouvidoria da UFAPE."))
 
     # Orientação para casos de Conduta Sexual
     @Rule(Classificacao(tipo="Conduta Sexual", acao=MATCH.acao))
@@ -334,6 +188,7 @@ class AgenteAssedio(KnowledgeEngine):
     def registrar_orientacao(self, msg):
         self.orientacoes.append(msg)
 
+    #################### PARTE DE REFERÊNCIAS AO GUIA ####################
     @Rule(Classificacao(tipo=MATCH.tipo, subtipo=MATCH.subtipo))
     def referenciar_guia(self, tipo, subtipo):
         if subtipo:
